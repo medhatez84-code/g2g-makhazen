@@ -725,7 +725,7 @@ function exportActiveReportExcel() {
 
 // المزامنة الحقيقية مع Firestore السحابي
 function loadSavedDataFromCloud() {
-    db.collection("g2g_warehouse").doc("master_data").get().then((doc) => {
+    db.collection("system").doc("master_data").get().then((doc) => {
         if (doc.exists) {
             const parsed = doc.data();
             stockData = parsed.stockData || [];
