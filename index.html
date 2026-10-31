@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مخازن G2G السحابية</title>
+    <!-- Bootstrap RTL CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Firebase App & Firestore (v9 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #0f172a;
+            --accent-blue: #0284c7;
+            --accent-green: #16a34a;
+            --accent-orange: #ea580c;
+            --accent-purple: #9333ea;
+            --accent-teal: #0d9488;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; color: #1e293b; }
+        .header-bar { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 18px 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .dashboard-btn-card { background: white; border-radius: 16px; padding: 18px 10px; text-align: center; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 2px solid transparent; height: 100%; }
+        .dashboard-btn-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .dashboard-btn-card.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; filter: grayscale(1); }
+        
+        .btn-in { border-color: #e0f2fe; } .btn-in:hover { border-color: var(--accent-blue); background-color: #f0f9ff; } .btn-in .icon-box { background: #e0f2fe; color: var(--accent-blue); }
+        .btn-out { border-color: #dcfce7; } .btn-out:hover { border-color: var(--accent-green); background-color: #f0fdf4; } .btn-out .icon-box { background: #dcfce7; color: var(--accent-green); }
+        .btn-ret { border-color: #ffedd5; } .btn-ret:hover { border-color: var(--accent-orange); background-color: #fff7ed; } .btn-ret .icon-box { background: #ffedd5; color: var(--accent-orange); }
+        .btn-user { border-color: #f3e8ff; } .btn-user:hover { border-color: var(--accent-purple); background-color: #faf5ff; } .btn-user .icon-box { background: #f3e8ff; color: var(--accent-purple); }
+        .btn-rep { border-color: #fee2e2; } .btn-rep:hover { border-color: #dc2626; background-color: #fef2f2; } .btn-rep .icon-box { background: #fee2e2; color: #dc2626; }
+        .btn-add-item { border-color: #ccfbf1; } .btn-add-item:hover { border-color: var(--accent-teal); background-color: #f0fdfa; } .btn-add-item .icon-box { background: #ccfbf1; color: var(--accent-teal); }
+        .btn-backup { border-color: #e2e8f0; } .btn-backup:hover { border-color: #475569; background-color: #f8fafc; } .btn-backup .icon-box { background: #e2e8f0; color: #334155; }
+        .btn-admin { border-color: #fef08a; } .btn-admin:hover { border-color: #ca8a04; background-color: #fefce8; } .btn-admin .icon-box { background: #fef08a; color: #ca8a04; }
+
+        .icon-box { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px auto; font-size: 1.3rem; }
+        .card-custom { background: white; border-radius: 16px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: none; margin-bottom: 25px; }
+        .badge-status { font-size: 0.85rem; padding: 5px 12px; border-radius: 20px; }
+        .invoice-print-area { background: white; padding: 35px; border-radius: 12px; border: 2px solid #e2e8f0; }
+
+        /* تخصيص الطباعة بحجم خط 14 وخط أنيق وجذاب */
+        @media print { 
+            .no-print { display: none !important; } 
+            .invoice-print-area { border: none; padding: 0; } 
+            .card-custom { box-shadow: none; padding: 0; }
+            body, table, th, td, h1, h2, h3, h4, h5, span, strong {
+                font-size: 14pt !important;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+                color: #000 !important;
+            }
+        }
+        @media (min-width: 992px) { .col-custom-8 { flex: 0 0 auto; width: 12.5%; } }
+    </style>
+</head>
+<body>
+
+<!-- شاشة تسجيل الدخول وتعيين الأدمن لأول مرة -->
+<div id="loginOverlay" class="login-overlay d-none">
+    <div class="login-card text-center">
+        <div id="firstRunBox" class="d-none">
+            <div class="mb-3 text-warning fs-1"><i class="fa-solid fa-user-shield"></i></div>
+            <h4 class="fw-bold text-dark mb-1">تأسيس النظام السحابي (المرة الأولى فقط)</h4>
+            <p class="text-muted small mb-4">قم بتعيين حساب <strong>الأدمن الرئيسي</strong>. سيتم حفظ هذا الحساب سحابياً ولن تظهر هذه الشاشة مرة أخرى.</p>
+            <form id="firstRunForm">
+                <div class="form-floating mb-3">
+                    <input type="text" id="setupAdminName" class="form-control" placeholder="اسم المدير" required>
+                    <label>اسم المدير / المسؤول</label>
+                </div>
+                <div class="form-floating mb-3">
+                    <input type="email" id="setupAdminEmail" class="form-control" placeholder="name@example.com" required>
+                    <label>البريد الإلكتروني</label>
+                </div>
+                <div class="form-floating mb-4">
+                    <input type="password" id="setupAdminPass" class="form-control" placeholder="كلمة السر" minlength="6" required>
+                    <label>كلمة السر (6 أرقام/حروف على الأقل)</label>
+                </div>
+                <button type="submit" class="btn btn-warning btn-lg w-100 fw-bold shadow">
+                    <i class="fa-solid fa-key ms-1"></i> حفظ وتثبيت مدير النظام سحابياً
+                </button>
+            </form>
+        </div>
+
+        <div id="normalLoginBox">
+            <div class="mb-3 text-primary fs-1"><i class="fa-solid fa-boxes-stacked"></i></div>
+            <h4 class="fw-bold text-dark mb-1">منظومة مخازن G2G السحابية</h4>
+            <p class="text-muted small mb-4">يرجى تسجيل الدخول للوصول إلى النظام</p>
+            
+            <form id="loginForm">
+                <div class="form-floating mb-3">
+                    <input type="email" id="loginEmail" class="form-control" placeholder="name@example.com" required>
+                    <label>البريد الإلكتروني</label>
+                </div>
+                <div class="form-floating mb-3">
+                    <input type="password" id="loginPassword" class="form-control" placeholder="كلمة السر" required>
+                    <label>كلمة السر</label>
+                </div>
+                <div id="loginError" class="alert alert-danger small d-none py-2 mb-3"></div>
+                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow">
+                    <i class="fa-solid fa-right-to-bracket ms-1"></i> تسجيل الدخول
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- الشريط العلوي -->
+<div class="header-bar d-flex justify-content-between align-items-center no-print">
+    <div>
+        <h3 class="m-0 font-weight-bold"><i class="fa-solid fa-boxes-stacked me-2 text-info"></i> مخازن G2G السحابية</h3>
+        <small class="text-light opacity-75">منظومة إسبير - الربط السحابي مع Firebase والأعداد الأصلية</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-light text-dark px-3 py-2 fw-bold d-none d-md-inline" id="userBadgeDisplay">
+            <i class="fa-solid fa-circle-user text-primary ms-1"></i> <span id="currentUserName">جاري التحميل...</span>
+        </span>
+        <button class="btn btn-warning fw-bold text-dark rounded-pill px-3 shadow-sm" onclick="manualSaveData()">
+            <i class="fa-solid fa-cloud-arrow-up ms-1"></i> حفظ سحابي ☁️
+        </button>
+        <button class="btn btn-outline-light rounded-pill px-3" onclick="showSection('stockSection')">
+            <i class="fa-solid fa-warehouse ms-1"></i> المخزن
+        </button>
+        <button class="btn btn-outline-danger rounded-pill px-3" onclick="logoutUser()">
+            <i class="fa-solid fa-power-off ms-1"></i> خروج
+        </button>
+    </div>
+</div>
+
+<div class="container my-4">
+
+    <!-- أزرار الواجهة الرئيسية -->
+    <div class="row g-2 mb-4 no-print">
+        <div class="col-custom-8 col-6 col-sm-4">
+            <div class="dashboard-btn-card btn-in" id="btn-sec-in" onclick="showSection('inSection')">
+                <div class="icon-box"><i class="fa-solid fa-box-archive"></i></div>
+                <h6 class="fw-bold">الوارد</h6>
+                <p class="text-muted small mb-0">توريد وأسعار</p>
+            </div>
+        </div>
+        <div class="col-custom-8 col-6 col-sm-4">
+            <div class="dashboard-btn-card btn-out" id="btn-sec-out" onclick="showSection('outSection')">
+                <div class="icon-box"><i class="fa-solid fa-truck-ramp-box"></i></div>
+                <h6 class="fw-bold">المنصرف</h6>
+                <p class="text-muted small mb-0">صرف للموقع</p>
+            </div>
+        </div>
+        <div class="col-custom-8 col-6 col-sm-4">
+            <div class="dashboard-btn-card btn-ret" id="btn-sec-ret" onclick="showSection('retSection')">
+                <div class="icon-box"><i class="fa-solid fa-rotate-left"></i></div>
+                <h6 class="fw-bold">المرتجع</h6>
+                <p class="text-muted small mb-0">إرجاع خامات</p>
+            </div>
+        </div>
+        <div class="col-custom-8 col-6 col-sm-4">
+            <div class="dashboard-btn-card btn-user" id="btn-sec-user" onclick="showSection('userSection')">
+                <div class="icon-box"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                <h6 class="fw-bold">المستخدم</h6>
+                <p class="text-muted small mb-0">فواتير ومسحوبات</p>
+            </div>
+        </div>
+        <div class="col-custom-8 col-6 col-sm-4">
+            <div class="dashboard-btn-card btn-rep" id="btn-sec-rep" onclick="showSection('reportsSection')">
+                <div class="icon-box"><i class="fa-solid fa-chart-line"></i></div>
+                <h6 class="fw-bold">التقارير</h6>
+                <p class="text-muted small mb-0">بحث وسجل الحركات</p>
+            </div>
+        </div>
+        <div class="col-custom-8 col-6 col-sm-4">
+            <div class="dashboard-btn-card btn-add-item" id="btn-sec-add-item" onclick="showSection('addItemSection')">
+                <div class="icon-box"><i class="fa-solid fa-plus-circle"></i></div>
+                <h6 class="fw-bold">إضافة صنف</h6>
+                <p class="text-muted small mb-0">تعريف خامة</p>
+            </div>
+        </div>
+        <div class="col-custom-8 col-6 col-sm-4">
+            <div class="dashboard-btn-card btn-backup" id="btn-sec-backup" onclick="showSection('backupSection')">
+                <div class="icon-box"><i class="fa-solid fa-database"></i></div>
+                <h6 class="fw-bold">النسخ الاحتياطي</h6>
+                <p class="text-muted small mb-0">حفظ واسترجاع</p>
+            </div>
+        </div>
+        <div class="col-custom-8 col-6 col-sm-4">
+            <div class="dashboard-btn-card btn-admin" id="btn-sec-admin" onclick="showSection('adminSection')">
+                <div class="icon-box"><i class="fa-solid fa-users-gear"></i></div>
+                <h6 class="fw-bold">المستخدمين</h6>
+                <p class="text-muted small mb-0">الأدوار والصلاحيات</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. الوارد -->
+    <div id="inSection" class="section-content card-custom d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+            <h4 class="text-primary m-0"><i class="fa-solid fa-box-archive ms-2"></i> تسجيل توريد بضاعة للمخزن (فاتورة الوارد)</h4>
+            <div>
+                <button class="btn btn-outline-primary px-3 me-2" onclick="printInvoicesList()"><i class="fa-solid fa-print ms-1"></i> طباعة فواتير الوارد 🖨️</button>
+            </div>
+        </div>
+
+        <div class="card bg-light p-3 mb-4 no-print border">
+            <div class="row g-3 align-items-center">
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">بحث سريع عن فاتورة وارد (اسم المورد أو رقم الفاتورة)</label>
+                    <input type="text" id="searchInSupplierInput" class="form-control" placeholder="اكتب اسم المورد أو رقم الفاتورة للبحث..." oninput="filterInvoicesView()">
+                </div>
+            </div>
+        </div>
+
+        <form id="formIn">
+            <input type="hidden" id="editInInvoiceId">
+            <div class="row g-3 mb-4">
+                <div class="col-md-4"><label class="form-label fw-bold">اسم المورد / الشركة الموردة</label><input type="text" id="inSupplier" class="form-control" required></div>
+                <div class="col-md-4"><label class="form-label fw-bold">رقم فاتورة الوارد</label><input type="text" id="inInvoiceNo" class="form-control" required></div>
+                <div class="col-md-4"><label class="form-label fw-bold">تاريخ التوريد</label><input type="date" id="inDate" class="form-control" required></div>
+            </div>
+            <h5 class="fw-bold mb-3 border-bottom pb-2">الأصناف الموردة</h5>
+            <div id="inItemsContainer">
+                <div class="row g-2 mb-2 in-item-row align-items-center">
+                    <div class="col-md-6"><select class="form-select item-dropdown in-item-select" onchange="onInItemSelectChange(this)" required></select></div>
+                    <div class="col-md-2"><input type="number" class="form-control in-item-qty" placeholder="الكمية" min="1" step="any" required></div>
+                    <div class="col-md-2"><input type="number" class="form-control in-item-price" placeholder="سعر الوحدة" min="0" step="any" value="0" required></div>
+                    <div class="col-md-2"><button type="button" class="btn btn-danger w-100" onclick="removeInRow(this)"><i class="fa-solid fa-trash"></i></button></div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-outline-primary my-2" onclick="addInRow()"><i class="fa-solid fa-plus"></i> إضافة صنف آخر بالفاتورة</button>
+            <div class="text-end mt-4"><button type="submit" id="saveInInvoiceBtn" class="btn btn-primary btn-lg px-5">حفظ وتأكيد فاتورة الوارد وتحديث الأسعار</button></div>
+        </form>
+    </div>
+
+    <!-- 2. المنصرف -->
+    <div id="outSection" class="section-content card-custom d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+            <h4 class="text-success m-0"><i class="fa-solid fa-truck-ramp-box ms-2"></i> إذن صرف خامات لموقع (المنصرف)</h4>
+            <button class="btn btn-outline-success px-3" onclick="printReportSection('outReportTable')"><i class="fa-solid fa-print ms-1"></i> طباعة أذونات المنصرف 🖨️</button>
+        </div>
+        <form id="formOut">
+            <div class="row g-3 mb-4">
+                <div class="col-md-3"><label class="form-label fw-bold">كود الموقع</label><input type="text" id="outSiteCode" class="form-control" required></div>
+                <div class="col-md-4"><label class="form-label fw-bold">اسم الموقع / المشروع</label><input type="text" id="outSiteName" class="form-control" required></div>
+                <div class="col-md-3"><label class="form-label fw-bold">اسم المستخدم النهائي</label><input type="text" id="outEndUser" class="form-control" required></div>
+                <div class="col-md-2"><label class="form-label fw-bold">تاريخ الصرف</label><input type="date" id="outDate" class="form-control" required></div>
+            </div>
+            <h5 class="fw-bold mb-3 border-bottom pb-2">الأصناف المنصرفة</h5>
+            <div id="outItemsContainer">
+                <div class="row g-2 mb-2 out-item-row align-items-center">
+                    <div class="col-md-6"><select class="form-select item-dropdown out-item-select" onchange="onOutItemSelectChange(this)" required></select></div>
+                    <div class="col-md-2"><input type="number" class="form-control out-item-qty" placeholder="الكمية" min="1" step="any" required></div>
+                    <div class="col-md-2"><input type="number" class="form-control out-item-price" placeholder="سعر الوحدة" min="0" step="any" value="0" required></div>
+                    <div class="col-md-2"><button type="button" class="btn btn-danger w-100" onclick="removeOutRow(this)"><i class="fa-solid fa-trash"></i></button></div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-outline-success my-2" onclick="addOutRow()"><i class="fa-solid fa-plus"></i> إضافة صنف آخر</button>
+            <div class="text-end mt-4"><button type="submit" class="btn btn-success btn-lg px-5">حفظ وتأكيد الصرف</button></div>
+        </form>
+    </div>
+
+    <!-- 3. المرتجع -->
+    <div id="retSection" class="section-content card-custom d-none">
+        <h4 class="text-warning mb-4 border-bottom pb-3"><i class="fa-solid fa-rotate-left ms-2"></i> تسجيل خامات مرتجعة من موقع (المرتجع)</h4>
+        <form id="formRet">
+            <div class="row g-3 mb-3">
+                <div class="col-md-4"><label class="form-label fw-bold">اختر كود الموقع</label><select id="retSiteSelect" class="form-select" required onchange="loadSiteItemsForReturn()"></select></div>
+                <div class="col-md-5"><label class="form-label fw-bold">الصنف المرتجع</label><select id="retItemSelect" class="form-select" required></select></div>
+                <div class="col-md-3"><label class="form-label fw-bold">الكمية المرتجعة</label><input type="number" id="retQty" class="form-control" min="1" step="any" required></div>
+            </div>
+            <div class="text-end mt-4"><button type="submit" class="btn btn-warning text-white btn-lg px-5">تأكيد إرجاع الخامة وخصمها من الفاتورة</button></div>
+        </form>
+    </div>
+
+    <!-- 4. المستخدم للموقع -->
+    <div id="userSection" class="section-content card-custom d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4 no-print border-bottom pb-3">
+            <h4 class="text-purple m-0" style="color: var(--accent-purple);"><i class="fa-solid fa-file-invoice-dollar ms-2"></i> كشف مسحوبات واستهلاك المستخدم للموقع</h4>
+            <div>
+                <select id="userSiteSelect" class="form-select d-inline-block w-auto me-2" onchange="renderInvoice()"></select>
+                <button class="btn btn-outline-primary px-3 me-1" id="togglePriceBtn" onclick="togglePriceView()"><i class="fa-solid fa-eye ms-1"></i> <span id="togglePriceText">إظهار الأسعار المالية</span></button>
+                <button class="btn btn-success px-3 me-1" onclick="exportTableToExcel('invoiceTable', 'فاتورة_موقع')"><i class="fa-solid fa-file-excel ms-1"></i> تصدير Excel 📊</button>
+                <button class="btn btn-secondary px-3" onclick="window.print()"><i class="fa-solid fa-print ms-1"></i> طباعة</button>
+            </div>
+        </div>
+        <div id="invoiceArea" class="invoice-print-area">
+            <div class="text-center text-muted py-5"><h5>برجاء اختيار كود الموقع لعرض الفاتورة</h5></div>
+        </div>
+    </div>
+
+    <!-- 5. التقارير + سجل التعديلات بالحركات -->
+    <div id="reportsSection" class="section-content card-custom d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 no-print">
+            <h4 class="text-danger m-0"><i class="fa-solid fa-chart-line ms-2"></i> لوحة تقارير مخازن G2G وسجل التعديلات</h4>
+            <div>
+                <button class="btn btn-success px-3 me-2" onclick="exportActiveReportExcel()"><i class="fa-solid fa-file-excel ms-1"></i> تصدير التقرير لـ Excel 📊</button>
+                <button class="btn btn-danger px-3" onclick="window.print()"><i class="fa-solid fa-print ms-1"></i> طباعة 🖨️</button>
+            </div>
+        </div>
+
+        <div class="card bg-light p-3 mb-4 no-print border">
+            <h5 class="fw-bold mb-3 text-secondary"><i class="fa-solid fa-filter ms-1"></i> خيارات البحث المتقدم (بحث باسم المورد، رقم الفاتورة، التاريخ، أو الموقع)</h5>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">بحث شامل (اسم المورد، رقم الفاتورة، الموقع، أو الصنف)</label>
+                    <input type="text" id="repSearchText" class="form-control" placeholder="اكتب للبحث..." oninput="renderReports()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">من تاريخ</label>
+                    <input type="date" id="repDateFrom" class="form-control" onchange="renderReports()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">إلى تاريخ</label>
+                    <input type="date" id="repDateTo" class="form-control" onchange="renderReports()">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-outline-secondary w-100" onclick="resetReportFilters()"><i class="fa-solid fa-rotate-right ms-1"></i> إعادة الضبط</button>
+                </div>
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs mb-4 no-print" id="reportTabs">
+            <li class="nav-item"><button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#inRepContent" type="button" onclick="currentRepTab='in'">📦 تقرير الوارد</button></li>
+            <li class="nav-item"><button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#outRepContent" type="button" onclick="currentRepTab='out'">🚚 تقرير المنصرف</button></li>
+            <li class="nav-item"><button class="nav-link fw-bold text-dark" data-bs-toggle="tab" data-bs-target="#auditRepContent" type="button" onclick="currentRepTab='audit'">📜 سجل التعديلات والحركات</button></li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="inRepContent">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-primary">فواتير الوارد المسجلة</h5>
+                    <button class="btn btn-outline-primary btn-sm" onclick="printReportSection('inReportTable')"><i class="fa-solid fa-print ms-1"></i> طباعة تقرير الوارد 🖨️</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped text-center align-middle" id="inReportTable">
+                        <thead class="table-primary">
+                            <tr><th>#</th><th>التاريخ</th><th>رقم الفاتورة</th><th>المورد</th><th style="width: 320px;">الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th><th>إجراءات</th></tr>
+                        </thead>
+                        <tbody id="inReportTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="outRepContent">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-success">أذونات وصرف المواقع المسجلة</h5>
+                    <button class="btn btn-outline-success btn-sm" onclick="printReportSection('outReportTable')"><i class="fa-solid fa-print ms-1"></i> طباعة تقرير المنصرف 🖨️</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped text-center align-middle" id="outReportTable">
+                        <thead class="table-success">
+                            <tr><th>#</th><th>التاريخ</th><th>كود الموقع</th><th>اسم الموقع</th><th>المستخدم النهائي</th><th style="width: 320px;">الصنف</th><th>المنصرف</th><th>المرتجع</th><th>الصافي</th><th>إجراءات</th></tr>
+                        </thead>
+                        <tbody id="outReportTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="auditRepContent">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover text-center align-middle" id="auditReportTable">
+                        <thead class="table-dark">
+                            <tr><th>#</th><th>التاريخ والوقت</th><th>اسم المستخدم</th><th>الدور</th><th>نوع الحركة</th><th style="width: 380px;">التفاصيل (مع بيان الحذف أو التعديل)</th></tr>
+                        </thead>
+                        <tbody id="auditReportTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. إضافة صنف جديد -->
+    <div id="addItemSection" class="section-content card-custom d-none">
+        <h4 class="mb-4 border-bottom pb-3" style="color: var(--accent-teal);"><i class="fa-solid fa-plus-circle ms-2"></i> إضافة صنف / خامة جديدة للمخزن (يترتب أبجدياً تلقائياً)</h4>
+        <form id="formAddNewItem">
+            <div class="row g-3 mb-4">
+                <div class="col-md-6"><label class="form-label fw-bold">اسم الصنف الجديد</label><input type="text" id="newItemName" class="form-control" placeholder="أدخل اسم الصنف..." required></div>
+                <div class="col-md-3"><label class="form-label fw-bold">رصيد أول المدة</label><input type="number" id="newInitialQty" class="form-control" min="0" step="any" value="0" required></div>
+                <div class="col-md-3"><label class="form-label fw-bold">سعر الوحدة الافتتاحي</label><input type="number" id="newPrice" class="form-control" min="0" step="any" value="0" required></div>
+            </div>
+            <div class="text-end"><button type="submit" class="btn text-white btn-lg px-5" style="background-color: var(--accent-teal);"><i class="fa-solid fa-save ms-1"></i> حفظ وإضافة الصنف للمخزن</button></div>
+        </form>
+    </div>
+
+    <!-- 7. النسخ الاحتياطي -->
+    <div id="backupSection" class="section-content card-custom d-none">
+        <h4 class="mb-4 border-bottom pb-3 text-secondary"><i class="fa-solid fa-database ms-2"></i> إدارة النسخ الاحتياطي واسترجاع البيانات</h4>
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="p-4 border rounded bg-light h-100 shadow-sm">
+                    <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-cloud-arrow-down ms-2"></i> تصدير وحفظ نسخة احتياطية</h5>
+                    <p class="text-muted small">احفظ نسخة كاملة من بيانات النظام وسجل التعديلات على جهازك.</p>
+                    <button class="btn btn-primary fw-bold px-4 mt-3" onclick="exportBackupFile()"><i class="fa-solid fa-download ms-1"></i> تنزيل النسخة الاحتياطية 📥</button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="p-4 border rounded bg-light h-100 shadow-sm">
+                    <h5 class="fw-bold text-success mb-3"><i class="fa-solid fa-cloud-arrow-up ms-2"></i> استرجاع البيانات من نسخة سابقة</h5>
+                    <p class="text-muted small">قم برفع ملف النسخة الاحتياطية لاسترجاع البيانات والأسعار فوراً.</p>
+                    <input type="file" id="backupFileInput" class="form-control mb-3" accept=".json">
+                    <button class="btn btn-success fw-bold px-4" onclick="importBackupFile()"><i class="fa-solid fa-upload ms-1"></i> استرجاع وتفعيل البيانات 🔄</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8. إدارة المستخدمين (للأدمن فقط) -->
+    <div id="adminSection" class="section-content card-custom d-none">
+        <h4 class="mb-4 border-bottom pb-3 text-warning"><i class="fa-solid fa-users-gear ms-2"></i> لوحة إدارة المستخدمين وتحديد الصلاحيات والأدوار</h4>
+        
+        <div class="row g-4 mb-4">
+            <div class="col-md-5">
+                <div class="card p-3 border shadow-sm">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2 text-dark"><i class="fa-solid fa-user-plus ms-1"></i> إضافة / تعديل مستخدم</h5>
+                    <form id="formUserManage">
+                        <input type="hidden" id="editUserId">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">اسم المستخدم</label>
+                            <input type="text" id="manageName" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">البريد الإلكتروني</label>
+                            <input type="email" id="manageEmail" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">كلمة السر</label>
+                            <input type="password" id="managePassword" class="form-control" placeholder="تترك فارغة عند التعديل">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">الدور الوظيفي (Role)</label>
+                            <select id="manageRole" class="form-select" onchange="onRoleSelectChange(this.value)">
+                                <option value="admin">مدير نظام (Admin) - كافة الصلاحيات</option>
+                                <option value="storekeeper">أمين مخزن - وارد ومنصرف ومرتجع</option>
+                                <option value="site_engineer">مهندس / مدير موقع - فواتير موقعه فقط</option>
+                                <option value="custom">مخصص - تحديد اختياري للصلاحيات</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-2">تحديد الصلاحيات بالتفصيل:</label>
+                            <div class="row g-2 border p-2 rounded bg-light" id="permissionsContainer">
+                                <div class="col-6"><div class="form-check"><input class="form-check-input perm-chk" type="checkbox" id="p_in" checked><label class="form-check-label small" for="p_in">الوارد</label></div></div>
+                                <div class="col-6"><div class="form-check"><input class="form-check-input perm-chk" type="checkbox" id="p_out" checked><label class="form-check-label small" for="p_out">المنصرف</label></div></div>
+                                <div class="col-6"><div class="form-check"><input class="form-check-input perm-chk" type="checkbox" id="p_ret" checked><label class="form-check-label small" for="p_ret">المرتجع</label></div></div>
+                                <div class="col-6"><div class="form-check"><input class="form-check-input perm-chk" type="checkbox" id="p_user" checked><label class="form-check-label small" for="p_user">المستخدم للموقع</label></div></div>
+                                <div class="col-6"><div class="form-check"><input class="form-check-input perm-chk" type="checkbox" id="p_prices"><label class="form-check-label small" for="p_prices">رؤية الأسعار المالية</label></div></div>
+                                <div class="col-6"><div class="form-check"><input class="form-check-input perm-chk" type="checkbox" id="p_reports" checked><label class="form-check-label small" for="p_reports">التقارير</label></div></div>
+                                <div class="col-6"><div class="form-check"><input class="form-check-input perm-chk" type="checkbox" id="p_addItem"><label class="form-check-label small" for="p_addItem">إضافة صنف</label></div></div>
+                                <div class="col-6"><div class="form-check"><input class="form-check-input perm-chk" type="checkbox" id="p_backup"><label class="form-check-label small" for="p_backup">النسخ الاحتياطي</label></div></div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-warning w-100 fw-bold"><i class="fa-solid fa-floppy-disk ms-1"></i> حفظ بيانات المستخدم</button>
+                    </form>
+                </div>
+            </div>
+            <div class="col-md-7">
+                <div class="card p-3 border shadow-sm">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2 text-dark"><i class="fa-solid fa-users ms-1"></i> قائمة المستخدمين المسجلين</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered text-center align-middle">
+                            <thead class="table-dark">
+                                <tr><th>#</th><th>الاسم</th><th>البريد</th><th>الدور</th><th>إجراءات</th></tr>
+                            </thead>
+                            <tbody id="usersListBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- المخزن الرئيسي -->
+    <div id="stockSection" class="section-content card-custom">
+        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+            <div><h4 class="m-0 fw-bold"><i class="fa-solid fa-warehouse text-info ms-2"></i> رصيد المخزن الرئيسي - مخازن G2G (<span id="totalItemsCount">0</span> صنف)</h4></div>
+            <div class="d-flex align-items-center gap-2 w-50 justify-content-end">
+                <input type="text" id="searchStockInput" class="form-control w-50" placeholder="🔍 ابحث باسم صنف..." oninput="filterStockTable()">
+                <button class="btn btn-success text-nowrap" onclick="exportSimpleStockExcel()"><i class="fa-solid fa-file-excel ms-1"></i> تصدير الأرصدة لـ Excel 📊</button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover text-center align-middle" id="stockMasterTable">
+                <thead class="table-dark">
+                    <tr><th>#</th><th style="width: 380px;">اسم الصنف / الخامة</th><th>أول المدة</th><th>الوارد</th><th>المنصرف</th><th>المرتجع</th><th>الرصيد المتبقي</th><th class="col-price">سعر الوحدة الحالي</th></tr>
+                </thead>
+                <tbody id="stockMasterBody"></tbody>
+            </table>
+        </div>
+        <!-- أزرار التنقل بين صفحات المخزن (20 صنف لكل صفحة) -->
+        <div class="d-flex justify-content-between align-items-center mt-3 no-print">
+            <button class="btn btn-outline-primary" id="prevPageBtn" onclick="changeStockPage(-1)">السابق</button>
+            <span class="fw-bold" id="pageIndicator">الصفحة 1</span>
+            <button class="btn btn-outline-primary" id="nextPageBtn" onclick="changeStockPage(1)">التالي</button>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// إعدادات اتصال Firebase السحابي
+const firebaseConfig = {
+    apiKey: "AIzaSyD-g2gCloudWarehouseSystemAssiut2026",
+    authDomain: "g2g-makhazen.firebaseapp.com",
+    projectId: "g2g-makhazen",
+    storageBucket: "g2g-makhazen.appspot.com",
+    messagingSenderId: "1234567890",
+    appId: "1:1234567890:web:abcdef"
+};
+
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+
+// الأصناف بالترتيب الأبجدي مع أعداد أول المدة الأصلية من شيت الإكسيل
+const defaultRawItems = [
+    {"name": "ارث 16 ملي بالمتر", "initial": 400},
+    {"name": "ارث 35 ملي بالمتر", "initial": 500},
+    {"name": "ارث 50 ملي بالمتر", "initial": 600},
+    {"name": "ارث 95 ملى بالمتر", "initial": 600},
+    {"name": "اكمون", "initial": 131},
+    {"name": "البو طالعة تري 20 سم", "initial": 9},
+    {"name": "البو نازلة تري 20 سم", "initial": 22},
+    {"name": "البو نازلة تري 40 سم", "initial": 17},
+    {"name": "L ترى", "initial": 166},
+    {"name": "باسكت تري", "initial": 4},
+    {"name": "باره المونيوم 10*30", "initial": 13},
+    {"name": "باره المونيوم 40*10", "initial": 50},
+    {"name": "باره المونيوم 5*15", "initial": 36},
+    {"name": "براكت كامل بارد", "initial": 60},
+    {"name": "براكت كامل ساخن", "initial": 39},
+    {"name": "براكت لينك", "initial": 34},
+    {"name": "بلح عازل", "initial": 170},
+    {"name": "تري 10 سم 3 متر", "initial": 2},
+    {"name": "تري 20 سم تقيل بدون شفه 2 متر", "initial": 1},
+    {"name": "تري 20سم اطوال مختلفة", "initial": 13},
+    {"name": "تري تقيل 20سم اطوال مختلفة", "initial": 13},
+    {"name": "تري تقيل بشفه 40سم", "initial": 21},
+    {"name": "تري تقيل بدون شفه 40 سم 2م", "initial": 8},
+    {"name": "تري خفيف بدون شفه 20سم 1 متر", "initial": 3},
+    {"name": "ترامل مفتاح 16", "initial": 100},
+    {"name": "ترامل مفتاح 35", "initial": 100},
+    {"name": "ترامل مفتاح 50", "initial": 200},
+    {"name": "تاي راب", "initial": 30},
+    {"name": "جلبه 2 بوصه", "initial": 106},
+    {"name": "جلبه بوصه", "initial": 155},
+    {"name": "جلبه بوصه ونص", "initial": 20},
+    {"name": "جلنده", "initial": 75},
+    {"name": "جوان تري", "initial": 0},
+    {"name": "حربه ارث", "initial": 13},
+    {"name": "خامة اضافية", "initial": 0},
+    {"name": "خليه ضوئية", "initial": 5},
+    {"name": "دباسة سفتي واير", "initial": 11},
+    {"name": "زاويه ترى", "initial": 160},
+    {"name": "سلك وايربالمتر", "initial": 200},
+    {"name": "سليكون", "initial": 4},
+    {"name": "سي كلامب", "initial": 58},
+    {"name": "شارب ايدج بالفة", "initial": 1},
+    {"name": "شريط لحام ارث", "initial": 22},
+    {"name": "شريط لحام اسود", "initial": 45},
+    {"name": "صفر", "initial": 0},
+    {"name": "صلب تري", "initial": 0},
+    {"name": "علبة لحام ريكم", "initial": 2},
+    {"name": "عود ثري نصف", "initial": 0},
+    {"name": "عود تيش", "initial": 117},
+    {"name": "عود ضاكت", "initial": 10},
+    {"name": "غطا تري 40سم", "initial": 22},
+    {"name": "فرشه دهان", "initial": 5},
+    {"name": "فضل تري 40 سم", "initial": 35},
+    {"name": "فلوسكبل صغير باللفه", "initial": 1},
+    {"name": "فلوسكبل كبير باللفه", "initial": 12},
+    {"name": "فيشه خارجى", "initial": 8},
+    {"name": "قفيز 2 بوصه", "initial": 58},
+    {"name": "قفيز بوصه ونص", "initial": 72},
+    {"name": "قفيز واحد بوصه", "initial": 45},
+    {"name": "كوربه 90 10 سم", "initial": 1},
+    {"name": "كوربه 90 40 سم", "initial": 14},
+    {"name": "كوربه حرف تي 40 سم", "initial": 20},
+    {"name": "كوربه زاويه 45 40سم", "initial": 2},
+    {"name": "كوليه معدن", "initial": 60},
+    {"name": "كوع 2 بوصه", "initial": 40},
+    {"name": "كوع بوصه", "initial": 80},
+    {"name": "كوع بوصه ونص", "initial": 111},
+    {"name": "كوس المونيوم 35", "initial": 24},
+    {"name": "كوسه المونيوم 50", "initial": 39},
+    {"name": "كوسه المونيوم 70", "initial": 16},
+    {"name": "كوسه المونيم 95", "initial": 80},
+    {"name": "كابل 25 ملى", "initial": 60},
+    {"name": "كابل 35 ملي", "initial": 15},
+    {"name": "كابل GEDB بالمتر", "initial": 50},
+    {"name": "لوحه كهرباء صغيره", "initial": 12},
+    {"name": "لوحه كهرباء كبيره", "initial": 3},
+    {"name": "مفتاح 100 امبير 3 بول ابيض", "initial": 9},
+    {"name": "مفتاح 100 امبير 4 بول ابيض", "initial": 6},
+    {"name": "مفتاح 100 4 بول اسود", "initial": 10},
+    {"name": "مفتاح 32 امبير 4 بول", "initial": 9},
+    {"name": "مفتاح 63 3 بول", "initial": 28},
+    {"name": "مفتاح 63 4 بول", "initial": 2},
+    {"name": "مفتاح احادى 16 امبير", "initial": 20},
+    {"name": "مفتاح ثنائى 16 امبير", "initial": 12},
+    {"name": "مفتاح ثنائي 16 امبير", "initial": 6},
+    {"name": "مكنة سفتي واير", "initial": 11},
+    {"name": "منهل", "initial": 11},
+    {"name": "ماسوره حديد 6 متر 3 بوصه", "initial": 100},
+    {"name": "ماسوره حديد 6 متر 4 بوصه", "initial": 12},
+    {"name": "اوميجا بار", "initial": 3}
+];
+
+let stockData = [];
+let sitesData = {};
+let inInvoicesData = [];
+let usersData = [];
+let auditLogs = [];
+let currentUser = null;
+let showPriceInInvoice = false;
+let currentRepTab = 'in';
+let currentStockPage = 1;
+const itemsPerPage = 20;
+
+function exportSimpleStockExcel() {
+    let table = document.createElement('table');
+    table.style.borderCollapse = 'collapse';
+    table.style.width = '100%';
+    table.style.direction = 'rtl';
+
+    let headerRow = table.insertRow();
+    ['م', 'اسم الصنف / الخامة', 'الرصيد المتبقي', 'سعر الوحدة الحالي'].forEach((text, i) => {
+        let th = headerRow.insertCell();
+        th.innerText = text;
+        th.style.backgroundColor = '#0f172a';
+        th.style.color = '#fff';
+        th.style.border = '1px solid #cbd5e1';
+        th.style.padding = '10px';
+        if(i === 1) th.style.minWidth = '350px';
+    });
+
+    let sortedStock = [...stockData].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+
+    sortedStock.forEach((item, idx) => {
+        let balance = item.initial + item.inQty - item.issuedQty + item.returnedQty;
+        let row = table.insertRow();
+
+        let c1 = row.insertCell();
+        c1.innerText = idx + 1;
+        c1.style.border = '1px solid #cbd5e1';
+        c1.style.padding = '8px';
+        c1.style.textAlign = 'center';
+
+        let c2 = row.insertCell();
+        c2.innerText = item.name;
+        c2.style.border = '1px solid #cbd5e1';
+        c2.style.padding = '8px';
+        c2.style.fontWeight = 'bold';
+        c2.style.textAlign = 'start';
+
+        let c3 = row.insertCell();
+        c3.innerText = balance;
+        c3.style.border = '1px solid #cbd5e1';
+        c3.style.padding = '8px';
+        c3.style.textAlign = 'center';
+        c3.style.fontWeight = 'bold';
+        c3.style.color = balance >= 0 ? '#16a34a' : '#dc2626';
+
+        let c4 = row.insertCell();
+        c4.innerText = item.price || 0;
+        c4.style.border = '1px solid #cbd5e1';
+        c4.style.padding = '8px';
+        c4.style.textAlign = 'center';
+    });
+
+    for (let i = 1; i <= 20; i++) {
+        let row = table.insertRow();
+        let c1 = row.insertCell();
+        c1.innerText = sortedStock.length + i;
+        c1.style.border = '1px solid #cbd5e1';
+        c1.style.padding = '8px';
+        c1.style.textAlign = 'center';
+
+        let c2 = row.insertCell();
+        c2.innerText = '';
+        c2.style.border = '1px solid #cbd5e1';
+        c2.style.padding = '8px';
+
+        let c3 = row.insertCell();
+        c3.innerText = '';
+        c3.style.border = '1px solid #cbd5e1';
+        c3.style.padding = '8px';
+
+        let c4 = row.insertCell();
+        c4.innerText = '';
+        c4.style.border = '1px solid #cbd5e1';
+        c4.style.padding = '8px';
+    }
+
+    let excelStyle = `<head><meta charset="UTF-8"></head>`;
+    let tableHTML = excelStyle + table.outerHTML;
+    let filename = 'G2G_Stock_Balance_' + new Date().toISOString().slice(0,10) + '.xls';
+
+    let downloadLink = document.createElement('a');
+    document.body.appendChild(downloadLink);
+    downloadLink.href = 'data:application/vnd.ms-excel;charset=utf-8,' + encodeURIComponent('\ufeff' + tableHTML);
+    downloadLink.download = filename;
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    logAction('تصدير إكسيل', 'تم تصدير الأرصدة المتبقية والأسعار لـ Excel بنجاح');
+}
+
+function exportTableToExcel(tableID, filename = '') {
+    let tableSelect = document.getElementById(tableID);
+    if (!tableSelect) return;
+    let excelStyle = `<head><meta charset="UTF-8"><style>table{border-collapse:collapse;width:100%;direction:rtl;}th,td{border:1px solid #cbd5e1;padding:8px;text-align:center;}th{background-color:#0f172a;color:#fff;}td:nth-child(5),th:nth-child(5){min-width:320px;text-align:start;}</style></head>`;
+    let tableHTML = excelStyle + "<table>" + tableSelect.innerHTML + "</table>";
+    filename = filename ? filename + '_' + new Date().toISOString().slice(0,10) + '.xls' : 'G2G_Export.xls';
+
+    let downloadLink = document.createElement('a');
+    document.body.appendChild(downloadLink);
+    downloadLink.href = 'data:application/vnd.ms-excel;charset=utf-8,' + encodeURIComponent('\ufeff' + tableHTML);
+    downloadLink.download = filename;
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+}
+
+function exportActiveReportExcel() {
+    if (currentRepTab === 'in') exportTableToExcel('inReportTable', 'تقرير_الوارد');
+    else if (currentRepTab === 'out') exportTableToExcel('outReportTable', 'تقرير_المنصرف');
+    else if (currentRepTab === 'audit') exportTableToExcel('auditReportTable', 'سجل_التعديلات');
+}
+
+// المزامنة الحقيقية مع Firestore السحابي
+function loadSavedDataFromCloud() {
+    db.collection("g2g_warehouse").doc("master_data").get().then((doc) => {
+        if (doc.exists) {
+            const parsed = doc.data();
+            stockData = parsed.stockData || [];
+            sitesData = parsed.sitesData || {};
+            inInvoicesData = parsed.inInvoicesData || [];
+            usersData = parsed.usersData || [];
+            auditLogs = parsed.auditLogs || [];
+            renderStockMaster();
+            renderReports();
+        } else {
+            initDefaultData();
+        }
+    }).catch((error) => {
+        console.log("خطأ في جلب البيانات سحابياً، سيتم استخدام التخزين المحلي:", error);
+        loadSavedDataLocal();
+    });
+}
+
+function initDefaultData() {
+    stockData = [];
+    let seenNames = new Set();
+    defaultRawItems.forEach((item) => {
+        if (!seenNames.has(item.name)) {
+            seenNames.add(item.name);
+            stockData.push({
+                id: stockData.length + 1,
+                name: item.name,
+                initial: item.initial || 0,
+                inQty: 0,
+                issuedQty: 0,
+                returnedQty: 0,
+                price: 0
+            });
+        }
+    });
+    stockData.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    inInvoicesData = [];
+    sitesData = {};
+    usersData = [];
+    auditLogs = [];
+    manualSaveData();
+}
+
+function loadSavedDataLocal() {
+    const savedMaster = localStorage.getItem('g2g_cloud_db_v27');
+    if (savedMaster) {
+        const parsed = JSON.parse(savedMaster);
+        stockData = parsed.stockData || [];
+        sitesData = parsed.sitesData || {};
+        inInvoicesData = parsed.inInvoicesData || [];
+        usersData = parsed.usersData || [];
+        auditLogs = parsed.auditLogs || [];
+    } else {
+        initDefaultData();
+    }
+}
+
+function manualSaveData() {
+    const masterData = { stockData, sitesData, inInvoicesData, usersData, auditLogs };
+    localStorage.setItem('g2g_cloud_db_v27', JSON.stringify(masterData));
+    
+    db.collection("g2g_warehouse").doc("master_data").set(masterData).then(() => {
+        console.log("تم الحفظ والمزامنة السحابية بنجاح ☁️");
+    }).catch((error) => {
+        console.error("خطأ في المزامنة السحابية: ", error);
+    });
+}
+
+function checkInitialAuthState() {
+    loadSavedDataFromCloud();
+    const activeUser = JSON.parse(localStorage.getItem('g2g_active_user'));
+
+    if (usersData.length === 0) {
+        setTimeout(() => {
+            if (usersData.length === 0) {
+                document.getElementById('loginOverlay').classList.remove('d-none');
+                document.getElementById('firstRunBox').classList.remove('d-none');
+                document.getElementById('normalLoginBox').classList.add('d-none');
+            } else if (activeUser) {
+                currentUser = activeUser;
+                document.getElementById('loginOverlay').classList.add('d-none');
+                applyUserPermissions();
+                renderStockMaster();
+            } else {
+                document.getElementById('loginOverlay').classList.remove('d-none');
+                document.getElementById('firstRunBox').classList.add('d-none');
+                document.getElementById('normalLoginBox').classList.remove('d-none');
+            }
+        }, 1000);
+    } else if (activeUser) {
+        currentUser = activeUser;
+        document.getElementById('loginOverlay').classList.add('d-none');
+        applyUserPermissions();
+        renderStockMaster();
+    } else {
+        document.getElementById('loginOverlay').classList.remove('d-none');
+        document.getElementById('firstRunBox').classList.add('d-none');
+        document.getElementById('normalLoginBox').classList.remove('d-none');
+    }
+}
+
+document.getElementById('firstRunForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const name = document.getElementById('setupAdminName').value.trim();
+    const email = document.getElementById('setupAdminEmail').value.trim().toLowerCase();
+    const password = document.getElementById('setupAdminPass').value;
+
+    const masterAdmin = {
+        id: 'admin_master',
+        name: name,
+        email: email,
+        password: password,
+        role: 'admin',
+        perms: { in: true, out: true, ret: true, user: true, prices: true, reports: true, addItem: true, backup: true, admin: true }
+    };
+
+    usersData.push(masterAdmin);
+    currentUser = masterAdmin;
+    localStorage.setItem('g2g_active_user', JSON.stringify(currentUser));
+    
+    logAction('تأسيس النظام', `تم تعيين مدير النظام الأول: ${name}`);
+    manualSaveData();
+
+    document.getElementById('loginOverlay').classList.add('d-none');
+    alert(`تم تأسيس النظام وربطه بـ Firebase بنجاح! أهلاً بك أستاذ ${name}.`);
+    applyUserPermissions();
+    renderStockMaster();
+});
+
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+    const pass = document.getElementById('loginPassword').value;
+
+    const foundUser = usersData.find(u => u.email.toLowerCase() === email && u.password === pass);
+    if (foundUser) {
+        currentUser = foundUser;
+        localStorage.setItem('g2g_active_user', JSON.stringify(currentUser));
+        logAction('تسجيل دخول', 'قام بتسجيل الدخول للنظام');
+        document.getElementById('loginOverlay').classList.add('d-none');
+        document.getElementById('loginError').classList.add('d-none');
+        applyUserPermissions();
+        renderStockMaster();
+    } else {
+        const errDiv = document.getElementById('loginError');
+        errDiv.innerText = 'البريد الإلكتروني أو كلمة السر غير صحيحة!';
+        errDiv.classList.remove('d-none');
+    }
+});
+
+function logoutUser() {
+    if(currentUser) logAction('تسجيل خروج', 'قام بتسجيل الخروج');
+    currentUser = null;
+    localStorage.removeItem('g2g_active_user');
+    checkInitialAuthState();
+}
+
+function applyUserPermissions() {
+    if (!currentUser) return;
+    document.getElementById('currentUserName').innerText = `${currentUser.name} (${getRoleTitle(currentUser.role)})`;
+    const p = currentUser.perms || {};
+
+    toggleDashboardCard('btn-sec-in', p.in);
+    toggleDashboardCard('btn-sec-out', p.out);
+    toggleDashboardCard('btn-sec-ret', p.ret);
+    toggleDashboardCard('btn-sec-user', p.user);
+    toggleDashboardCard('btn-sec-rep', p.reports);
+    toggleDashboardCard('btn-sec-add-item', p.addItem);
+    toggleDashboardCard('btn-sec-backup', p.backup);
+    toggleDashboardCard('btn-sec-admin', p.admin);
+
+    document.querySelectorAll('.col-price').forEach(el => {
+        el.style.display = p.prices ? '' : 'none';
+    });
+    renderUsersList();
+}
+
+function toggleDashboardCard(cardId, isAllowed) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    if (isAllowed) card.classList.remove('disabled');
+    else card.classList.add('disabled');
+}
+
+function getRoleTitle(role) {
+    if(role === 'admin') return 'مدير النظام';
+    if(role === 'storekeeper') return 'أمين مخزن';
+    if(role === 'site_engineer') return 'مدير موقع';
+    return 'مستخدم مخصص';
+}
+
+function showSection(sectionId) {
+    if (!currentUser) return;
+    const p = currentUser.perms || {};
+    const permMap = {
+        'inSection': p.in, 'outSection': p.out, 'retSection': p.ret,
+        'userSection': p.user, 'reportsSection': p.reports,
+        'addItemSection': p.addItem, 'backupSection': p.backup, 'adminSection': p.admin,
+        'stockSection': true
+    };
+
+    if (permMap[sectionId] === false) {
+        alert('عفواً، ليس لديك صلاحية للدخول إلى هذا القسم!');
+        return;
+    }
+
+    document.querySelectorAll('.section-content').forEach(el => el.classList.add('d-none'));
+    document.getElementById(sectionId).classList.remove('d-none');
+
+    if(sectionId === 'stockSection') renderStockMaster();
+    if(sectionId === 'reportsSection') renderReports();
+}
+
+// عرض المخزن بالترتيب الأبجدي ونظام الصفحات (20 صنف لكل صفحة)
+function renderStockMaster() {
+    const tbody = document.getElementById('stockMasterBody');
+    tbody.innerHTML = '';
+    document.getElementById('totalItemsCount').innerText = stockData.length;
+
+    stockData.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+
+    const canSeePrices = currentUser?.perms?.prices ?? true;
+    const totalPages = Math.ceil(stockData.length / itemsPerPage) || 1;
+    if (currentStockPage > totalPages) currentStockPage = totalPages;
+
+    const startIdx = (currentStockPage - 1) * itemsPerPage;
+    const endIdx = startIdx + itemsPerPage;
+    const pageItems = stockData.slice(startIdx, endIdx);
+
+    pageItems.forEach((item, idx) => {
+        const globalIdx = startIdx + idx;
+        const currentBalance = item.initial + item.inQty - item.issuedQty + item.returnedQty;
+        tbody.innerHTML += `
+            <tr data-name="${item.name.toLowerCase()}">
+                <td>${globalIdx + 1}</td>
+                <td><input type="text" class="form-control text-start fw-bold" value="${item.name}" onchange="updateName(${globalIdx}, this.value)"></td>
+                <td><input type="number" class="form-control text-center" value="${item.initial}" min="0" step="any" onchange="updateInitial(${globalIdx}, this.value)"></td>
+                <td class="text-primary fw-bold">${item.inQty}</td>
+                <td class="text-danger fw-bold">${item.issuedQty}</td>
+                <td class="text-warning fw-bold">${item.returnedQty}</td>
+                <td><span class="badge bg-${currentBalance >= 0 ? 'success' : 'danger'} badge-status fs-6">${currentBalance}</span></td>
+                <td class="col-price" style="${!canSeePrices ? 'display:none;' : ''}">
+                    <input type="number" class="form-control text-center" value="${item.price || 0}" min="0" step="any" onchange="updatePrice(${globalIdx}, this.value)">
+                </td>
+            </tr>
+        `;
+    });
+
+    document.getElementById('pageIndicator').innerText = `الصفحة ${currentStockPage} من ${totalPages}`;
+    document.getElementById('prevPageBtn').disabled = (currentStockPage === 1);
+    document.getElementById('nextPageBtn').disabled = (currentStockPage === totalPages);
+
+    populateAllDropdowns();
+    updateSiteDropdowns();
+}
+
+function changeStockPage(direction) {
+    currentStockPage += direction;
+    renderStockMaster();
+}
+
+function updateName(idx, val) { 
+    let newName = val.trim();
+    if(!newName) return;
+    if(stockData.some((s, i) => i !== idx && s.name === newName)) {
+        alert('هذا الصنف موجود بالفعل ولا يمكن تكراره!');
+        renderStockMaster();
+        return;
+    }
+    let old = stockData[idx].name;
+    stockData[idx].name = newName;
+    stockData.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    logAction('تعديل اسم صنف', `تم تعديل اسم الصنف من (${old}) إلى (${newName})`);
+    renderStockMaster();
+}
+
+function updateInitial(idx, val) { 
+    stockData[idx].initial = parseFloat(val) || 0; 
+    logAction('تعديل رصيد أول المدة', `الصنف: ${stockData[idx].name}`);
+}
+
+function updatePrice(idx, val) { 
+    stockData[idx].price = parseFloat(val) || 0; 
+    logAction('تعديل سعر الصنف', `الصنف: ${stockData[idx].name}`);
+}
+
+function populateAllDropdowns() {
+    document.querySelectorAll('.item-dropdown').forEach(select => {
+        const selectedVal = select.value;
+        select.innerHTML = '<option value="">-- اختر الصنف --</option>';
+        stockData.forEach(item => {
+            select.innerHTML += `<option value="${item.name}">${item.name}</option>`;
+        });
+        select.value = selectedVal;
+    });
+}
+
+function addInRow() {
+    const container = document.getElementById('inItemsContainer');
+    const div = document.createElement('div');
+    div.className = 'row g-2 mb-2 in-item-row align-items-center';
+    div.innerHTML = `<div class="col-md-6"><select class="form-select item-dropdown in-item-select" onchange="onInItemSelectChange(this)" required></select></div><div class="col-md-2"><input type="number" class="form-control in-item-qty" placeholder="الكمية" min="1" step="any" required></div><div class="col-md-2"><input type="number" class="form-control in-item-price" placeholder="سعر الوحدة" min="0" step="any" value="0" required></div><div class="col-md-2"><button type="button" class="btn btn-danger w-100" onclick="removeInRow(this)"><i class="fa-solid fa-trash"></i></button></div>`;
+    container.appendChild(div);
+    populateAllDropdowns();
+}
+
+function removeInRow(btn) { if(document.querySelectorAll('.in-item-row').length > 1) btn.closest('.in-item-row').remove(); }
+
+function onInItemSelectChange(selectElem) {
+    const itemName = selectElem.value;
+    const row = selectElem.closest('.in-item-row');
+    const priceInput = row.querySelector('.in-item-price');
+    const stItem = stockData.find(s => s.name === itemName);
+    if(stItem) priceInput.value = stItem.price || 0;
+}
+
+// تعديل أو حفظ فاتورة الوارد
+document.getElementById('formIn').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const editId = document.getElementById('editInInvoiceId').value;
+    const supplier = document.getElementById('inSupplier').value.trim();
+    const invoiceNo = document.getElementById('inInvoiceNo').value.trim();
+    const date = document.getElementById('inDate').value;
+
+    let invoiceItems = [];
+    document.querySelectorAll('.in-item-row').forEach(row => {
+        const itemName = row.querySelector('.in-item-select').value;
+        const qty = parseFloat(row.querySelector('.in-item-qty').value);
+        const price = parseFloat(row.querySelector('.in-item-price').value) || 0;
+        const stItem = stockData.find(s => s.name === itemName);
+        
+        if(stItem && qty > 0) {
+            stItem.price = price;
+            invoiceItems.push({ itemName, qty, price });
+        }
+    });
+
+    if (editId) {
+        const oldInv = inInvoicesData.find(i => i.id === editId);
+        if (oldInv) {
+            oldInv.items.forEach(it => {
+                let st = stockData.find(s => s.name === it.itemName);
+                if(st) st.inQty -= it.qty;
+            });
+        }
+        inInvoicesData = inInvoicesData.filter(i => i.id !== editId);
+        
+        invoiceItems.forEach(it => {
+            let st = stockData.find(s => s.name === it.itemName);
+            if(st) st.inQty += it.qty;
+        });
+
+        inInvoicesData.push({ id: editId, supplier, invoiceNo, date, items: invoiceItems });
+        logAction('تعديل فاتورة وارد', `تم تعديل فاتورة رقم: ${invoiceNo} للمورد (${supplier})`);
+        alert('تم تعديل فاتورة الوارد بنجاح!');
+    } else {
+        invoiceItems.forEach(it => {
+            let st = stockData.find(s => s.name === it.itemName);
+            if(st) st.inQty += it.qty;
+        });
+        inInvoicesData.push({ id: 'inv_' + Date.now(), supplier, invoiceNo, date, items: invoiceItems });
+        logAction('تسجيل فاتورة وارد', `رقم: ${invoiceNo} | المورد: ${supplier}`);
+        alert('تم حفظ فاتورة الوارد بنجاح!');
+    }
+
+    this.reset();
+    document.getElementById('editInInvoiceId').value = '';
+    document.getElementById('saveInInvoiceBtn').innerText = 'حفظ وتأكيد فاتورة الوارد وتحديث الأسعار';
+    document.getElementById('inDate').valueAsDate = new Date();
+    renderStockMaster();
+});
+
+function filterInvoicesView() {
+    renderReports();
+}
+
+function printInvoicesList() {
+    printReportSection('inReportTable');
+}
+
+function editInInvoice(invId) {
+    const inv = inInvoicesData.find(i => i.id === invId);
+    if (!inv) return;
+
+    document.getElementById('editInInvoiceId').value = inv.id;
+    document.getElementById('inSupplier').value = inv.supplier;
+    document.getElementById('inInvoiceNo').value = inv.invoiceNo;
+    document.getElementById('inDate').value = inv.date;
+    document.getElementById('saveInInvoiceBtn').innerText = 'تعديل وحفظ فاتورة الوارد';
+
+    const container = document.getElementById('inItemsContainer');
+    container.innerHTML = '';
+
+    inv.items.forEach(it => {
+        const div = document.createElement('div');
+        div.className = 'row g-2 mb-2 in-item-row align-items-center';
+        div.innerHTML = `
+            <div class="col-md-6"><select class="form-select item-dropdown in-item-select" onchange="onInItemSelectChange(this)" required></select></div>
+            <div class="col-md-2"><input type="number" class="form-control in-item-qty" placeholder="الكمية" min="1" step="any" value="${it.qty}" required></div>
+            <div class="col-md-2"><input type="number" class="form-control in-item-price" placeholder="سعر الوحدة" min="0" step="any" value="${it.price}" required></div>
+            <div class="col-md-2"><button type="button" class="btn btn-danger w-100" onclick="removeInRow(this)"><i class="fa-solid fa-trash"></i></button></div>
+        `;
+        container.appendChild(div);
+        div.querySelector('.in-item-select').value = it.itemName;
+    });
+
+    populateAllDropdowns();
+    showSection('inSection');
+}
+
+function deleteInInvoice(invId) {
+    if(!confirm('هل أنت متأكد من حذف فاتورة الوارد بالكامل؟ سيتم خصم الكميات الواردة من المخزن.')) return;
+    const idx = inInvoicesData.findIndex(i => i.id === invId);
+    if(idx !== -1) {
+        const inv = inInvoicesData[idx];
+        inv.items.forEach(it => {
+            let st = stockData.find(s => s.name === it.itemName);
+            if(st) st.inQty -= it.qty;
+        });
+        inInvoicesData.splice(idx, 1);
+        logAction('حذف فاتورة وارد', `تم حذف فاتورة رقم: ${inv.invoiceNo} للمورد (${inv.supplier}) بالحذف`);
+        manualSaveData();
+        renderReports();
+        renderStockMaster();
+        alert('تم حذف فاتورة الوارد بنجاح.');
+    }
+}
+
+function deleteItemFromInInvoice(invId, itemName) {
+    if(!confirm(`هل أنت متأكد من حذف صنف (${itemName}) من الفاتورة؟`)) return;
+    const inv = inInvoicesData.find(i => i.id === invId);
+    if(inv) {
+        let itemIdx = inv.items.findIndex(it => it.itemName === itemName);
+        if(itemIdx !== -1) {
+            let removed = inv.items[itemIdx];
+            let st = stockData.find(s => s.name === itemName);
+            if(st) st.inQty -= removed.qty;
+
+            inv.items.splice(itemIdx, 1);
+            if(inv.items.length === 0) {
+                inInvoicesData = inInvoicesData.filter(i => i.id !== invId);
+            }
+            logAction('تعديل بالحذف (صنف وارد)', `تم حذف صنف (${itemName}) كمية (${removed.qty}) من فاتورة رقم (${inv.invoiceNo})`);
+            manualSaveData();
+            renderReports();
+            renderStockMaster();
+            alert('تم حذف الصنف من الفاتورة بنجاح.');
+        }
+    }
+}
+
+function addOutRow() {
+    const container = document.getElementById('outItemsContainer');
+    const div = document.createElement('div');
+    div.className = 'row g-2 mb-2 out-item-row align-items-center';
+    div.innerHTML = `<div class="col-md-6"><select class="form-select item-dropdown out-item-select" onchange="onOutItemSelectChange(this)" required></select></div><div class="col-md-2"><input type="number" class="form-control out-item-qty" placeholder="الكمية" min="1" step="any" required></div><div class="col-md-2"><input type="number" class="form-control out-item-price" placeholder="سعر الوحدة" min="0" step="any" value="0" required></div><div class="col-md-2"><button type="button" class="btn btn-danger w-100" onclick="removeOutRow(this)"><i class="fa-solid fa-trash"></i></button></div>`;
+    container.appendChild(div);
+    populateAllDropdowns();
+}
+
+function removeOutRow(btn) { if(document.querySelectorAll('.out-item-row').length > 1) btn.closest('.out-item-row').remove(); }
+
+function onOutItemSelectChange(selectElem) {
+    const itemName = selectElem.value;
+    const row = selectElem.closest('.out-item-row');
+    const priceInput = row.querySelector('.out-item-price');
+    const stItem = stockData.find(s => s.name === itemName);
+    if(stItem) priceInput.value = stItem.price || 0;
+}
+
+document.getElementById('formOut').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const code = document.getElementById('outSiteCode').value.trim();
+    const name = document.getElementById('outSiteName').value.trim();
+    const endUser = document.getElementById('outEndUser').value.trim();
+    const date = document.getElementById('outDate').value;
+
+    if(!sitesData[code]) sitesData[code] = { code, name, endUser, date, items: {} };
+    else { sitesData[code].endUser = endUser; sitesData[code].date = date; sitesData[code].name = name; }
+
+    document.querySelectorAll('.out-item-row').forEach(row => {
+        const itemName = row.querySelector('.out-item-select').value;
+        const qty = parseFloat(row.querySelector('.out-item-qty').value);
+        const price = parseFloat(row.querySelector('.out-item-price').value) || 0;
+        const stItem = stockData.find(s => s.name === itemName);
+        
+        if(stItem) stItem.issuedQty += qty;
+        if(!sitesData[code].items[itemName]) sitesData[code].items[itemName] = { issued: 0, returned: 0, price: price };
+        
+        sitesData[code].items[itemName].issued += qty;
+        sitesData[code].items[itemName].price = price;
+    });
+
+    logAction('تسجيل إذن صرف', `الموقع: ${code} - ${name}`);
+    updateSiteDropdowns();
+    alert('تم تسجيل إذن الصرف للموقع بنجاح!');
+    this.reset();
+    document.getElementById('outDate').valueAsDate = new Date();
+    renderStockMaster();
+});
+
+function deleteOutSite(code) {
+    if(!confirm(`هل أنت متأكد من حذف إذن صرف الموقع (${code}) بالكامل؟ سيتم إعادة الكميات للمخزن.`)) return;
+    if(sitesData[code]) {
+        for(let itemName in sitesData[code].items) {
+            let st = stockData.find(s => s.name === itemName);
+            if(st) st.issuedQty -= sitesData[code].items[itemName].issued;
+        }
+        delete sitesData[code];
+        logAction('حذف إذن صرف موقع', `تم حذف إذن صرف الموقع (${code}) بالكامل`);
+        manualSaveData();
+        updateSiteDropdowns();
+        renderReports();
+        renderStockMaster();
+        alert('تم حذف إذن الصرف بنجاح.');
+    }
+}
+
+function deleteItemFromOutSite(code, itemName) {
+    if(!confirm(`هل أنت متأكد من حذف صنف (${itemName}) من صرف الموقع؟`)) return;
+    if(sitesData[code] && sitesData[code].items[itemName]) {
+        let issuedAmt = sitesData[code].items[itemName].issued;
+        let st = stockData.find(s => s.name === itemName);
+        if(st) st.issuedQty -= issuedAmt;
+
+        delete sitesData[code].items[itemName];
+        if(Object.keys(sitesData[code].items).length === 0) {
+            delete sitesData[code];
+        }
+        logAction('تعديل بالحذف (صنف منصرف)', `تم حذف صنف (${itemName}) من إذن صرف الموقع (${code})`);
+        manualSaveData();
+        updateSiteDropdowns();
+        renderReports();
+        renderStockMaster();
+        alert('تم حذف الصنف من إذن الصرف بنجاح.');
+    }
+}
+
+function updateSiteDropdowns() {
+    const retSelect = document.getElementById('retSiteSelect');
+    const userSelect = document.getElementById('userSiteSelect');
+    retSelect.innerHTML = '<option value="">-- اختر كود الموقع --</option>';
+    userSelect.innerHTML = '<option value="">-- اختر كود الموقع --</option>';
+    for(let code in sitesData) {
+        retSelect.innerHTML += `<option value="${code}">${code} - ${sitesData[code].name}</option>`;
+        userSelect.innerHTML += `<option value="${code}">${code} - ${sitesData[code].name}</option>`;
+    }
+}
+
+function loadSiteItemsForReturn() {
+    const code = document.getElementById('retSiteSelect').value;
+    const itemSelect = document.getElementById('retItemSelect');
+    itemSelect.innerHTML = '<option value="">-- اختر الصنف --</option>';
+    if(code && sitesData[code]) {
+        for(let itemName in sitesData[code].items) {
+            itemSelect.innerHTML += `<option value="${itemName}">${itemName}</option>`;
+        }
+    }
+}
+
+document.getElementById('formRet').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const code = document.getElementById('retSiteSelect').value;
+    const itemName = document.getElementById('retItemSelect').value;
+    const qty = parseFloat(document.getElementById('retQty').value);
+
+    if(sitesData[code] && sitesData[code].items[itemName]) {
+        sitesData[code].items[itemName].returned += qty;
+        const stItem = stockData.find(s => s.name === itemName);
+        if(stItem) stItem.returnedQty += qty;
+
+        logAction('تسجيل مرتجع', `الصنف: ${itemName} | الكمية: ${qty}`);
+        alert('تم تسجيل المرتجع بنجاح!');
+        this.reset();
+        renderStockMaster();
+    }
+});
+
+document.getElementById('formAddNewItem').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const name = document.getElementById('newItemName').value.trim();
+    const qty = parseFloat(document.getElementById('newInitialQty').value) || 0;
+    const price = parseFloat(document.getElementById('newPrice').value) || 0;
+
+    if(stockData.some(s => s.name === name)) {
+        alert('هذا الصنف موجود بالفعل في المخزن ولا يمكن تكراره!');
+        return;
+    }
+
+    stockData.push({
+        id: stockData.length + 1,
+        name: name,
+        initial: qty,
+        inQty: 0,
+        issuedQty: 0,
+        returnedQty: 0,
+        price: price
+    });
+
+    stockData.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+
+    logAction('إضافة صنف جديد', `تم إضافة الصنف الجديد: ${name}`);
+    this.reset();
+    alert('تم إضافة الصنف وترتيبه أبجدياً بنجاح!');
+    showSection('stockSection');
+});
+
+function togglePriceView() {
+    showPriceInInvoice = !showPriceInInvoice;
+    const btnText = document.getElementById('togglePriceText');
+    if(btnText) btnText.innerText = showPriceInInvoice ? "إخفاء الأسعار المالية" : "إظهار الأسعار المالية";
+    renderInvoice();
+}
+
+function renderInvoice() {
+    const code = document.getElementById('userSiteSelect').value;
+    const area = document.getElementById('invoiceArea');
+    if(!code || !sitesData[code]) {
+        area.innerHTML = '<div class="text-center text-muted py-5"><h5>برجاء اختيار كود الموقع لعرض الفاتورة</h5></div>';
+        return;
+    }
+    const site = sitesData[code];
+    let rowsHtml = '', sumIssued = 0, sumReturned = 0, sumNet = 0, sumTotalCost = 0, idx = 1;
+
+    for(let itemName in site.items) {
+        const itemObj = site.items[itemName];
+        const net = itemObj.issued - itemObj.returned;
+        const unitPrice = itemObj.price || 0;
+        const totalItemPrice = net * unitPrice;
+
+        sumIssued += itemObj.issued;
+        sumReturned += itemObj.returned;
+        sumNet += net;
+        sumTotalCost += totalItemPrice;
+
+        if (showPriceInInvoice) {
+            rowsHtml += `<tr><td>${idx++}</td><td class="fw-bold text-start" style="min-width:320px;">${itemName}</td><td class="text-danger">${itemObj.issued}</td><td class="text-warning">${itemObj.returned}</td><td class="text-success fw-bold">${net}</td><td>${unitPrice.toLocaleString()} ج.م</td><td class="text-primary fw-bold">${totalItemPrice.toLocaleString()} ج.م</td></tr>`;
+        } else {
+            rowsHtml += `<tr><td>${idx++}</td><td class="fw-bold text-start" style="min-width:320px;">${itemName}</td><td class="text-danger fw-bold">${itemObj.issued}</td><td class="text-warning fw-bold">${itemObj.returned}</td><td class="text-success fw-bold">${net}</td></tr>`;
+        }
+    }
+
+    const titleText = showPriceInInvoice ? "فاتورة كشف مستلزمات موقع (مالية / بالأسعار)" : "فاتورة كشف مستلزمات موقع (رسمية / بدون أسعار)";
+    let tableHeader = showPriceInInvoice ? 
+        `<tr><th>#</th><th style="min-width:320px;">اسم الصنف</th><th>المنصرف</th><th>المرتجع</th><th>الصافي</th><th>سعر الوحدة</th><th>الإجمالي الكلي</th></tr>` :
+        `<tr><th>#</th><th style="min-width:320px;">اسم الصنف</th><th>إجمالي المنصرف</th><th>إجمالي المرتجع</th><th>الصافي الفعلي (بعد الخصم)</th></tr>`;
+
+    let tableFooter = showPriceInInvoice ?
+        `<tfoot class="table-light fw-bold fs-5"><tr><td colspan="4">الإجمالي الكلي</td><td class="text-success">${sumNet}</td><td>-</td><td class="text-primary">${sumTotalCost.toLocaleString()} ج.م</td></tr></tfoot>` :
+        `<tfoot class="table-light fw-bold fs-5"><tr><td colspan="2">الإجمالي الكلي</td><td class="text-danger">${sumIssued}</td><td class="text-warning">${sumReturned}</td><td class="text-success">${sumNet}</td></tr></tfoot>`;
+
+    area.innerHTML = `
+        <table class="table table-bordered text-center align-middle my-4" id="invoiceTable">
+            <thead>
+                <tr><th colspan="${showPriceInInvoice ? 7 : 5}" class="bg-light text-dark fs-4 border-0 pb-3">${titleText} - كود الموقع: ${site.code} (${site.name})</th></tr>
+                ${tableHeader}
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+            ${tableFooter}
+        </table>
+    `;
+}
+
+function resetReportFilters() {
+    document.getElementById('repSearchText').value = '';
+    document.getElementById('repDateFrom').value = '';
+    document.getElementById('repDateTo').value = '';
+    document.getElementById('searchInSupplierInput').value = '';
+    renderReports();
+}
+
+function renderReports() {
+    const searchText = document.getElementById('repSearchText').value.toLowerCase().trim();
+    const supplierSearchText = document.getElementById('searchInSupplierInput').value.toLowerCase().trim();
+    const dateFrom = document.getElementById('repDateFrom').value;
+    const dateTo = document.getElementById('repDateTo').value;
+    const canSeePrices = currentUser?.perms?.prices ?? true;
+
+    // 1. تقرير الوارد
+    const inBody = document.getElementById('inReportTableBody');
+    inBody.innerHTML = '';
+    let inIdx = 1;
+    inInvoicesData.forEach(inv => {
+        if (dateFrom && inv.date < dateFrom) return;
+        if (dateTo && inv.date > dateTo) return;
+
+        let invMatchStr = (inv.supplier + " " + inv.invoiceNo).toLowerCase();
+        if (supplierSearchText && !invMatchStr.includes(supplierSearchText)) return;
+
+        inv.items.forEach(it => {
+            let total = it.qty * it.price;
+            let matchText = (inv.supplier + " " + inv.invoiceNo + " " + inv.date + " " + it.itemName).toLowerCase();
+            if (searchText && !matchText.includes(searchText)) return;
+
+            inBody.innerHTML += `
+                <tr>
+                    <td>${inIdx++}</td>
+                    <td>${inv.date}</td>
+                    <td><span class="badge bg-dark">${inv.invoiceNo}</span></td>
+                    <td class="fw-bold">${inv.supplier}</td>
+                    <td class="text-start" style="min-width:320px;">${it.itemName}</td>
+                    <td class="text-primary fw-bold">${it.qty}</td>
+                    <td>${canSeePrices ? it.price.toLocaleString() + ' ج.م' : '***'}</td>
+                    <td>${canSeePrices ? total.toLocaleString() + ' ج.م' : '***'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-1" title="تعديل الفاتورة" onclick="editInInvoice('${inv.id}')"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn btn-sm btn-outline-danger me-1" title="حذف الصنف" onclick="deleteItemFromInInvoice('${inv.id}', '${it.itemName}')"><i class="fa-solid fa-xmark"></i></button>
+                        <button class="btn btn-sm btn-danger" title="حذف الفاتورة بالكامل" onclick="deleteInInvoice('${inv.id}')"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `;
+        });
+    });
+
+    // 2. تقرير المنصرف
+    const outBody = document.getElementById('outReportTableBody');
+    outBody.innerHTML = '';
+    let outIdx = 1;
+    for(let code in sitesData) {
+        let site = sitesData[code];
+        if (dateFrom && site.date && site.date < dateFrom) continue;
+        if (dateTo && site.date && site.date > dateTo) continue;
+
+        for(let itemName in site.items) {
+            let obj = site.items[itemName];
+            let net = obj.issued - obj.returned;
+            let matchText = (site.code + " " + site.name + " " + site.endUser + " " + itemName).toLowerCase();
+            if (searchText && !matchText.includes(searchText)) continue;
+
+            outBody.innerHTML += `
+                <tr>
+                    <td>${outIdx++}</td>
+                    <td>${site.date || '-'}</td>
+                    <td><span class="badge bg-secondary">${site.code}</span></td>
+                    <td>${site.name}</td>
+                    <td>${site.endUser}</td>
+                    <td class="text-start" style="min-width:320px;">${itemName}</td>
+                    <td class="text-danger fw-bold">${obj.issued}</td>
+                    <td class="text-warning fw-bold">${obj.returned}</td>
+                    <td class="text-success fw-bold">${net}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger me-1" title="حذف الصنف" onclick="deleteItemFromOutSite('${code}', '${itemName}')"><i class="fa-solid fa-xmark"></i></button>
+                        <button class="btn btn-sm btn-danger" title="حذف إذن الصرف بالكامل" onclick="deleteOutSite('${code}')"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    // 3. سجل الحركات والتعديلات (Audit Log)
+    const auditBody = document.getElementById('auditReportTableBody');
+    auditBody.innerHTML = '';
+    let aIdx = 1;
+    auditLogs.forEach(log => {
+        let matchText = (log.userName + " " + log.actionType + " " + log.details).toLowerCase();
+        if (searchText && !matchText.includes(searchText)) return;
+
+        auditBody.innerHTML += `
+            <tr>
+                <td>${aIdx++}</td>
+                <td><small class="fw-bold">${log.timestamp}</small></td>
+                <td class="fw-bold text-primary">${log.userName}</td>
+                <td><span class="badge bg-secondary">${log.userRole}</span></td>
+                <td><span class="badge bg-info text-dark">${log.actionType}</span></td>
+                <td class="text-start" style="min-width:380px;">${log.details}</td>
+            </tr>
+        `;
+    });
+}
+
+function printReportSection(tableId) {
+    let tableHtml = document.getElementById(tableId).outerHTML;
+    let win = window.open('', '', 'height=700,width=900');
+    win.document.write('<html><head><title>طباعة التقرير</title>');
+    win.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">');
+    win.document.write('<style>body{direction:rtl;padding:20px;font-family:sans-serif;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ddd;padding:8px;text-align:center;font-size:14pt !important;}</style>');
+    win.document.write('</head><body>');
+    win.document.write('<h3 class="text-center mb-4">تقرير مخازن G2G</h3>');
+    win.document.write(tableHtml);
+    win.document.write('</body></html>');
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 500);
+}
+
+function filterStockTable() {
+    const val = document.getElementById('searchStockInput').value.toLowerCase().trim();
+    if(!val) {
+        renderStockMaster();
+        return;
+    }
+    const tbody = document.getElementById('stockMasterBody');
+    tbody.innerHTML = '';
+    let filtered = stockData.filter(item => item.name.toLowerCase().includes(val));
+    const canSeePrices = currentUser?.perms?.prices ?? true;
+
+    filtered.forEach((item, idx) => {
+        const currentBalance = item.initial + item.inQty - item.issuedQty + item.returnedQty;
+        tbody.innerHTML += `
+            <tr>
+                <td>${idx + 1}</td>
+                <td><input type="text" class="form-control text-start fw-bold" value="${item.name}" onchange="updateName(${stockData.indexOf(item)}, this.value)"></td>
+                <td><input type="number" class="form-control text-center" value="${item.initial}" min="0" step="any" onchange="updateInitial(${stockData.indexOf(item)}, this.value)"></td>
+                <td class="text-primary fw-bold">${item.inQty}</td>
+                <td class="text-danger fw-bold">${item.issuedQty}</td>
+                <td class="text-warning fw-bold">${item.returnedQty}</td>
+                <td><span class="badge bg-${currentBalance >= 0 ? 'success' : 'danger'} badge-status fs-6">${currentBalance}</span></td>
+                <td class="col-price" style="${!canSeePrices ? 'display:none;' : ''}">
+                    <input type="number" class="form-control text-center" value="${item.price || 0}" min="0" step="any" onchange="updatePrice(${stockData.indexOf(item)}, this.value)">
+                </td>
+            </tr>
+        `;
+    });
+}
+
+async function exportBackupFile() {
+    const masterData = { stockData, sitesData, inInvoicesData, usersData, auditLogs };
+    const jsonString = JSON.stringify(masterData, null, 2);
+    const fileName = "G2G_Cloud_Backup_" + new Date().toISOString().slice(0,10) + ".json";
+
+    if ('showSaveFilePicker' in window) {
+        try {
+            const handle = await window.showSaveFilePicker({ suggestedName: fileName, types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }] });
+            const writable = await handle.createWritable();
+            await writable.write(jsonString);
+            await writable.close();
+            logAction('نسخ احتياطي', 'تصدير نسخة احتياطية');
+            alert('تم حفظ النسخة الاحتياطية بنجاح! 📥');
+            return;
+        } catch (err) { if (err.name === 'AbortError') return; }
+    }
+
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function importBackupFile() {
+    const fileInput = document.getElementById('backupFileInput');
+    if (fileInput.files.length === 0) { alert('برجاء اختيار ملف النسخة الاحتياطية!'); return; }
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (imported.stockData && imported.sitesData) {
+                stockData = imported.stockData;
+                sitesData = imported.sitesData;
+                inInvoicesData = imported.inInvoicesData || [];
+                usersData = imported.usersData || [];
+                auditLogs = imported.auditLogs || [];
+                manualSaveData();
+                renderStockMaster();
+                alert('تم استرجاع وتفعيل كافة البيانات بنجاح! 🔄');
+            }
+        } catch (err) { alert('ملف النسخة الاحتياطية غير صالح.'); }
+    };
+    reader.readAsText(file);
+}
+
+function onRoleSelectChange(role) {
+    const setAll = (val) => document.querySelectorAll('.perm-chk').forEach(c => c.checked = val);
+    if (role === 'admin') setAll(true);
+    else if (role === 'storekeeper') {
+        setAll(false);
+        document.getElementById('p_in').checked = true;
+        document.getElementById('p_out').checked = true;
+        document.getElementById('p_ret').checked = true;
+        document.getElementById('p_reports').checked = true;
+    } else if (role === 'site_engineer') {
+        setAll(false);
+        document.getElementById('p_user').checked = true;
+        document.getElementById('p_reports').checked = true;
+    }
+}
+
+document.getElementById('formUserManage')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const editId = document.getElementById('editUserId').value;
+    const name = document.getElementById('manageName').value.trim();
+    const email = document.getElementById('manageEmail').value.trim().toLowerCase();
+    const password = document.getElementById('managePassword').value;
+    const role = document.getElementById('manageRole').value;
+
+    const perms = {
+        in: document.getElementById('p_in').checked,
+        out: document.getElementById('p_out').checked,
+        ret: document.getElementById('p_ret').checked,
+        user: document.getElementById('p_user').checked,
+        prices: document.getElementById('p_prices').checked,
+        reports: document.getElementById('p_reports').checked,
+        addItem: document.getElementById('p_addItem').checked,
+        backup: document.getElementById('p_backup').checked,
+        admin: (role === 'admin')
+    };
+
+    if (editId) {
+        const u = usersData.find(x => x.id === editId);
+        if (u) {
+            u.name = name;
+            u.email = email;
+            if (password) u.password = password;
+            u.role = role;
+            u.perms = perms;
+        }
+    } else {
+        if (!password) { alert('برجاء كتابة كلمة سر للمستخدم الجديد!'); return; }
+        usersData.push({ id: 'u_' + Date.now(), name, email, password, role, perms });
+    }
+
+    manualSaveData();
+    this.reset();
+    document.getElementById('editUserId').value = '';
+    renderUsersList();
+    alert('تم حفظ المستخدم بنجاح!');
+});
+
+function renderUsersList() {
+    const tbody = document.getElementById('usersListBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    usersData.forEach((u, idx) => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${idx + 1}</td>
+                <td class="fw-bold">${u.name}</td>
+                <td>${u.email}</td>
+                <td><span class="badge bg-secondary">${getRoleTitle(u.role)}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editUser('${u.id}')"><i class="fa-solid fa-pen"></i></button>
+                    ${u.role !== 'admin' ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${u.id}')"><i class="fa-solid fa-trash"></i></button>` : ''}
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function editUser(id) {
+    const u = usersData.find(x => x.id === id);
+    if (!u) return;
+    document.getElementById('editUserId').value = u.id;
+    document.getElementById('manageName').value = u.name;
+    document.getElementById('manageEmail').value = u.email;
+    document.getElementById('manageRole').value = u.role;
+    const p = u.perms || {};
+    document.getElementById('p_in').checked = !!p.in;
+    document.getElementById('p_out').checked = !!p.out;
+    document.getElementById('p_ret').checked = !!p.ret;
+    document.getElementById('p_user').checked = !!p.user;
+    document.getElementById('p_prices').checked = !!p.prices;
+    document.getElementById('p_reports').checked = !!p.reports;
+    document.getElementById('p_addItem').checked = !!p.addItem;
+    document.getElementById('p_backup').checked = !!p.backup;
+}
+
+function deleteUser(id) {
+    if (confirm('هل أنت تأكد من رغبتك في حذف هذا المستخدم نهائياً؟')) {
+        usersData = usersData.filter(x => x.id !== id);
+        manualSaveData();
+        renderUsersList();
+    }
+}
+
+document.getElementById('inDate').valueAsDate = new Date();
+document.getElementById('outDate').valueAsDate = new Date();
+checkInitialAuthState();
+</script>
+</body>
+</html>
